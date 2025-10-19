@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ankieta — Troll Build z Firebase</title>
+  <style>
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;color:#e6eef8;background:#0f1724;display:flex;justify-content:center;align-items:center;min-height:100vh}
+    .wrap{background:#0b1220;padding:32px;border-radius:16px;box-shadow:0 8px 30px rgba(2,6,23,0.6);max-width:400px;width:90%;text-align:center}
+    h1{margin-bottom:16px;font-size:22px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;justify-items:center;margin-top:20px}
+    .btn{background:rgba(255,255,255,0.05);border:none;color:#e6eef8;font-size:24px;font-weight:700;padding:24px 0;width:100%;border-radius:12px;cursor:pointer;transition:transform .1s ease,background .1s ease}
+    .btn:hover{background:rgba(255,255,255,0.1)}
+    .btn:active{transform:scale(0.96)}
+    .toast{position:fixed;bottom:20px;right:20px;background:#0b1220;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);display:none}
+    canvas{margin-top:20px;width:100%;max-width:400px;height:300px}
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/11.23.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.23.0/firebase-database.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Wybierz numer builda</h1>
+    <p>Kliknij numer lub naciśnij klawisz 1–6, aby oddać głos i zobaczyć wyniki.</p>
+    <div class="grid" id="grid"></div>
+    <canvas id="chart" style="display:none"></canvas>
+  </div>
+
+  <div class="toast" id="toast">Zagłosowano!</div>
+
+  <script>
+    // Konfiguracja Firebase
+    const firebaseConfig = {
+      apiKey: "TWOJ_API_KEY",
+      authDomain: "TWOJ_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://TWOJ_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "TWOJ_PROJECT_ID",
+      storageBucket: "TWOJ_PROJECT_ID.appspot.com",
+      messagingSenderId: "TWOJ_SENDER_ID",
+      appId: "TWOJ_APP_ID"
+    };
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const grid = document.getElementById('grid');
+    const toast = document.getElementById('toast');
+    const chartCanvas = document.getElementById('chart');
+    let votes = [0,0,0,0,0,0];
+    let chart;
+
+    // Inicjalizacja przycisków
+    for(let i=1;i<=6;i++){
+      const btn=document.createElement('button');
+      btn.className='btn';
+      btn.textContent=i;
+      btn.addEventListener('click',()=>vote(i));
+      grid.appendChild(btn);
+    }
+
+    // Pobierz aktualne głosy z Firebase
+    function getVotes(){
+      db.ref('votes').once('value', snapshot => {
+        const data = snapshot.val() || {};
+        votes = [1,2,3,4,5,6].map(n => data[n] || 0);
+        showChart();
+      });
+    }
+
+    function vote(num){
+      const voteRef = db.ref('votes/' + num);
+      voteRef.transaction(current => (current || 0) + 1);
+      showToast(`Zagłosowano na numer ${num}`);
+      getVotes();
+    }
+
+    function showChart(){
+      grid.style.display='none';
+      chartCanvas.style.display='block';
+      const ctx = chartCanvas.getContext('2d');
+      if(chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['1','2','3','4','5','6'],
+          datasets: [{
+            label: 'Liczba głosów',
+            data: votes,
+            backgroundColor: 'rgba(124, 58, 237, 0.6)',
+          }]
+        },
+        options: {
+          scales: { y: { beginAtZero: true, precision:0 } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function showToast(t){
+      toast.textContent=t;
+      toast.style.display='block';
+      setTimeout(()=>toast.style.display='none',1500);
+    }
+
+    document.addEventListener('keydown',(e)=>{
+      if(/^[1-6]$/.test(e.key)) vote(Number(e.key));
+    });
+
+    // Pobierz początkowe głosy przy załadowaniu
+    getVotes();
+  </script>
+</body>
+</html>
